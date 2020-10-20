@@ -1,0 +1,257 @@
+---
+title: 'Project 1: Data Understanding & Preparation'
+author: "LEENA ADHIKARI, VAISHALI GOEL, EMILY KENNEY, MARTIN NWADIUGWU"
+date: "9/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load libraries with additional functionality
+library(ggplot2) # library for plots
+library(reshape2) # library for data handling
+library(tidyverse) # library for general data processing and handling
+library(skimr) # to get a better formatted overview of the data
+library(naniar)# to get idea of missing values
+library(dplyr)# for re-ordering of columns
+library(caret)
+
+setwd("C:/Users/mnwadiugwu/Desktop/ML/Assignment 1")
+
+
+
+# reading the modeldata file and assigning 'NA' to empty cells
+modeldata <- read.csv("modeldata_aug2020.csv", header = TRUE, na.strings=c("","Not Available","999-UNKNOWN","99-UNKNOWN","CONFLICT","NA"))
+testdata <- read.csv(file = "testdata_aug2020.csv", header = TRUE, na.strings=c("","Not Available","99-UNKNOWN","999-UNKNOWN","CONFLICT","NA"))
+
+
+
+#checking for NAs and complete values
+any_complete(modeldata$HQ_Country)
+any_na(modeldata$HQ_Country)
+any_miss(modeldata$HQ_Country)
+miss_var_summary(modeldata)
+
+
+#An overview of the data 
+glimpse(modeldata)
+
+# nicer:
+skim(modeldata)
+
+# Scatterplots and pairwise comparisons
+#ggpairs(modeldata, aes(color = churned))
+
+#Calculating correlation between the variables made easier by getting the numerical columns only
+modeldata_numeric <- modeldata %>% select_if(is.numeric)
+cor(modeldata_numeric)
+
+#Identifying correlated predictors using the caret package
+(high_correlation <- findCorrelation(cor(modeldata_numeric), cutoff = 0.7))
+
+```
+
+#Data transformations
+# we can also adjust an existing variable
+
+
+```{r include=FALSE}
+#converting zeros in HQ_Country, NAICS2, NAICS3
+modeldata$HQ_Country[modeldata$HQ_Country == 0] <- NA
+modeldata$NAICS2[modeldata$NAICS2 == 0] <- NA
+modeldata$NAICS3[modeldata$NAICS3 == 0] <- NA
+
+
+#testdata
+
+testdata$HQ_Country[testdata$HQ_Country == 0] <- NA
+testdata$NAICS2[testdata$NAICS2 == 0] <- NA
+testdata$NAICS3[testdata$NAICS3 == 0] <- NA
+
+
+library(lubridate)# for working on date with time
+
+
+#working on dates
+modeldata$churn_date= as.Date(modeldata$churn_date, format= "%m/%d/%y")
+as.numeric(modeldata$churn_date, origin="1970-01-01")
+
+
+modeldata$Company_Creation_Date = parse_date_time(modeldata$Company_Creation_Date, orders = "%d %b %Y:%H:%M:%S")
+as.numeric(modeldata$Company_Creation_Date)
+
+testdata$Company_Creation_Date = parse_date_time(testdata$Company_Creation_Date, orders = "%d %b %Y:%H:%M:%S")
+as.numeric(testdata$Company_Creation_Date)
+
+#converting quantitative data to numerical variables
+modeldata$Company_Number = as.numeric(modeldata$Company_Number)
+modeldata$total_products = as.numeric(modeldata$total_products)
+modeldata$total_transactions = as.numeric(modeldata$total_transactions)
+modeldata$total_revenue = as.numeric(modeldata$total_revenue)
+modeldata$total_usage = as.numeric(modeldata$total_usage)
+modeldata$total_accounts = as.numeric(modeldata$total_accounts)
+modeldata$HQ_Employee_Count = as.numeric(modeldata$HQ_Employee_Count)
+modeldata$churned = as.numeric(modeldata$churned)
+
+#converting quantitative data to numerical variables for testdata
+testdata$Company_Number = as.numeric(testdata$Company_Number)
+testdata$total_products = as.numeric(testdata$total_products)
+testdata$total_transactions = as.numeric(testdata$total_transactions)
+testdata$total_revenue = as.numeric(testdata$total_revenue)
+testdata$total_usage = as.numeric(testdata$total_usage)
+testdata$HQ_Employee_Count = as.numeric(testdata$HQ_Employee_Count)
+testdata$total_accounts = as.numeric(testdata$total_accounts)
+
+
+#Since one of the objective of the project is to predict if a customer is likely to churn or not and there are no dates for a customer not churning, it was decided that the empty spaces in the churn_Date column be assigned a 1970-10-01.
+modeldata$churn_date[is.na(modeldata$churn_date)] <- dmy('01-10-1970')
+modeldata$Company_Creation_Date[is.na(modeldata$Company_Creation_Date)] <- ymd("2012-11-10") #3 NAs replaced with mean date
+testdata$Company_Creation_Date[is.na(testdata$Company_Creation_Date)] <- ymd("2012-11-10") 
+
+
+# the data preparation steps is performed in the UtilsP.R code 
+source("UtilsP.R")
+modeldata <- prepare_modeldata(modeldata)
+names(modeldata)
+dim(modeldata)
+
+# convert variables into factors
+modeldata <- modeldata %>% mutate_at(c('HQ_Country','NAICS2', 'NAICS3'), as.factor)
+modeldata <- modeldata %>% mutate_if(is.character, as.factor)
+
+
+# convert variables into factors
+testdata <- testdata %>% mutate_at(c('HQ_Country','NAICS2', 'NAICS3'), as.factor)
+testdata <- testdata %>% mutate_if(is.character, as.factor)
+
+#convert to numeric
+modeldata$total_accounts = as.numeric(modeldata$total_accounts)
+modeldata$HQ_Employee_Count = as.numeric(modeldata$HQ_Employee_Count)
+
+summary(modeldata)
+summary(testdata)
+```
+
+#Imputation
+#Handling missing variables 
+
+```{r include=FALSE}
+
+#dealing with NAs for other variables, with mice imputation
+
+library(mice)
+library(VIM)
+
+str(modeldata)
+str(testdata)
+
+#percentage missing values
+p = function(x) {sum(is.na(x))/length(x)*100}
+apply(modeldata, 2, p)
+md.pattern(modeldata)
+
+#imputation for modeldata, only total_accounts & HQ_Employee_count seem to be having missing values at this point
+impute = mice(modeldata[,c(9,10)], m=5, seed = 123)  
+#testdatat
+impute2 = mice(testdata[,c(7,8)], m=5, seed = 123)
+
+#modeldata
+summary(modeldata$total_accounts)
+impute$imp$total_accounts
+impute$imp$HQ_Employee_Count
+
+#testdata
+summary(testdata$total_accounts)
+impute2$imp$total_accounts
+impute2$imp$HQ_Employee_Count
+
+#modeldata
+final_modeldata = complete(impute, 3)
+final_testdata = complete(impute2, 3)
+
+final_modeldata = cbind(modeldata[,c(1:8)], final_modeldata, modeldata[,c(11:13)]) 
+
+testdata = cbind(testdata[,c(1:6)], final_testdata, testdata[,c(9:11)]) 
+
+# then, we convert the 0/1 target variable into no/yes, as 0/1 can lead to problems when using as the dependent variable
+#final_modeldata <- final_modeldata %>% mutate(churned, churned = recode(churned, '0' = 'No', '1' = 'Yes'))
+
+#changing all NAs in HQ_Country, NAICS2, NAICS3 categorical variables to a category called 'missing'
+final_modeldata <- final_modeldata %>% mutate_if(is.factor, ~factor(replace(as.character(.), is.na(.), "missing")))
+
+#changing all NAs in HQ_Country, NAICS2, NAICS3 categorical variables to a category called 'missing'
+testdata <- testdata %>% mutate_if(is.factor, ~factor(replace(as.character(.), is.na(.), "missing")))
+
+  
+summary(final_modeldata)
+summary(testdata)
+```
+
+## R Markdown
+#description and plots of the final model data and writing it to file.
+
+
+```{r plots}
+
+library(tidyverse)
+library(GGally)
+library(Hmisc)
+library(DataExplorer)
+library(skimr)
+
+
+# basic R: the str() function
+str(final_modeldata)
+str(testdata)
+
+# a bit more descriptive summaries
+describe(final_modeldata) # this is from the Hmisc package
+describe(testdata)
+introduce(final_modeldata) # this is from the DataExplorer package
+introduce(testdata)
+skim(final_modeldata)
+skim(testdata)
+
+
+# for general exploratory analysis, you can use packages such as the DataExplorer package.
+# Make sure to check the tutorial/overview for this package to get an understanding of the provided features
+
+# structure of the data set
+plot_intro(final_modeldata)
+plot_intro(testdata)
+plot_str(final_modeldata)
+plot_str(testdata)
+
+# plot missing values
+plot_missing(final_modeldata)
+plot_missing(testdata)
+
+# plot the correlation between variables
+plot_correlation(final_modeldata)
+plot_correlation(testdata)
+```
+
+
+
+```{r writing}
+
+library(MASS) # large collection of data sets and functions
+library(ISLR)
+library(pROC)
+
+#writing the files
+write.csv(final_modeldata, file = "final_model.csv")
+
+#writing testdata
+write.csv(testdata, file = "final_test.csv")
+
+#centering and scaling data -- reserved for the model implementation
+#data_standardize <- preProcess(final_modeldata, method = c("center", "scale")) # scaling is dividing by the standard deviation. combining centering and scaling is equal to standardizing
+#data_standardize2 <- preProcess(testdata, method = c("center", "scale"))
+#data_standardize = data.frame()
+
+```
+
+## The End
+

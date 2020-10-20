@@ -1,0 +1,128 @@
+---
+title: "Nwadiugwu-A1-ISQA 8720"
+author: "Martin Nwadiugwu"
+date: "9/5/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load libraries with additional functionality
+library(ggplot2) # library for plots
+library(reshape2) # library for data handling
+library(tidyverse) # library for general data processing and handling
+library(skimr) # to get a better formatted overview of the data
+library(tidyverse)
+library(GGally)
+library(Hmisc)
+library(DataExplorer)
+library(ISLR) 
+
+#Data prepareation
+head(Carseats)
+describe(Carseats)
+introduce(Carseats)
+
+# structure of the data set
+plot_intro(Carseats)
+plot_str(Carseats)
+
+# plot missing values
+plot_missing(Carseats)
+
+# plot the correlation between variables
+plot_correlation(Carseats)
+
+#Converting Cataegorical data variables as factor
+Carseats$Urban= as.factor(Carseats$Urban)
+Carseats$US=as.factor(Carseats$US)
+Carseats$ShelveLoc=as.factor(Carseats$ShelveLoc)
+table(Carseats$Urban)
+table(Carseats$US)
+table(Carseats$ShelveLoc)
+
+#Fitting regression model
+Sales_predict = lm(Sales~Price+Urban+US, Carseats)
+
+summary(Sales_predict)
+
+#Fitting a smaller model with significant predictors from above
+Sales_predict2 = lm(Sales~Price+US, Carseats)
+summary(Sales_predict2)
+
+#Confirming significance
+
+Sales_predict3 = lm(Sales~., Carseats)
+summary(Sales_predict3)
+anova(Sales_predict2, Sales_predict3)
+
+#Data visualization
+plot(Sales_predict2)
+
+#obtaining 95% confidence interval for (e)
+
+confint(Sales_predict2)
+
+```
+
+## R Markdown
+
+## Question 2
+
+```{r cars}
+
+#a.	Perform the following commands in R (use your NU-ID as random number seed):
+
+set.seed(32089289)
+x1 <- runif(100)
+x2 <- 0.5 * x1 + rnorm (100)/10
+y <- 2 + 2 * x1 +0.3 * x2+rnorm(100)
+
+#creating a correlation coefficient and scatter plot
+
+cor(x1, x2)
+plot(x1, x2)
+
+#Fitting a least square regression
+
+P_y = lm(y~x1+x2)
+summary(P_y)
+
+#predicting y using only x1
+
+P_y1 = lm(y~x1)
+summary(P_y1)
+
+#predicting y using only x2
+
+P_y2 = lm(y~x2)
+summary(P_y2)
+
+#Refitting the linear model
+
+x1 <- c(x1 , 0.1)
+x2 <- c(x2 , 0.8)
+y <- c(y,6)
+
+#for (c)
+R_y = lm(y~x1+x2)
+summary(R_y)
+plot(R_y)
+
+#for (d)
+R_y1 = lm(y~x1)
+summary(R_y1)
+plot(R_y1)
+
+#for (e)
+R_y2 = lm(y~x2)
+summary(R_y2)
+plot(R_y2)
+
+```
+
+## End
+

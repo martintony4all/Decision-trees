@@ -1,0 +1,321 @@
+---
+title: "Model Building"
+author: "Dr. Christian Haas"
+date: "September 18, 2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Resampling Techniques
+
+This section discusses essential resampling techniques and how they are implemented in R.
+Note that sometimes R packages and methods come with built-in functions for cross-validation.
+However, it is always easy to implement basic CV ourselves.
+
+## Validation Set Approach
+
+Let's start with the validation set approach. If we only split the data two-ways, you will find that some people say 'training-validation', while others colloquially say 'training-test'. For a two-way split, both are equivalent.
+
+If you split it in three parts, we distinguish between training-test-validation. The test set is used to compare different parameterizations of the models built on training data, and the best performing one is then tested against the validation set. 
+
+```{r validation}
+
+# set your working directory to the current file directory 
+tryCatch({
+  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+  }, error=function(cond){message(paste("cannot change working directory"))
+})
+
+library(ISLR)
+library(caret)
+library(tidyverse)
+library(tidymodels)
+
+set.seed(2)
+
+# Let's begin by showing how training-validation/test resampling works on the Auto dataset.
+
+# an easy way of defining training-validation sets is by using indexes
+# here, we create a numeric index of 1 to nrow(Auto), and select 196 of the indexes therein
+
+data <- Auto # load data in memory
+
+target_var <- 'mpg'
+# note: we can specify the formula like this. if you specify individual predictors, they have to match the column names in the dataset
+model_form <- mpg ~ horsepower
+model_type <- "lm"
+
+# we create a data partition (training-test) by specifying our target variable
+train_index <- createDataPartition(y = data[[target_var]], p = 0.7, list = FALSE) # creata a 70-30 split
+
+data_train <- data %>% slice(train_index)
+data_test <- data %>% slice(-train_index)
+
+# if we want to specify that the model (here: lm) is only trained on the training set, the only thing we need to do is using the created train set
+trControl <- trainControl(method='none') #while a bit counterintuitive, if we manually train on the training data and evaluate on the test data, we don't need additional resampling
+
+model_recipe <- recipe(model_form, data = data_train) %>%  step_zv(all_predictors())
+
+lm_fit <- train(model_recipe, data = data_train, method = model_type, trControl = trControl)
+
+# let's get calculate the RMSE and other metrics for the training set
+(lm_fit_train_rmse <- postResample(lm_fit$finalModel$fitted.values, obs = data_train[[target_var]]))
+
+# calculate the predictions for the test set
+lm_fit_test_pred <- lm_fit %>% predict(newdata = data_test, type = 'raw') # this would be the predictions for the validation/test set
+
+# get performance metrics for the test set predictions
+postResample(pred = lm_fit_test_pred, obs = data_test[[target_var]])
+postResample(pred = lm_fit_test_pred, obs = data_test[[target_var]])['RMSE']
+
+# compare this against a polynomial regression
+model_recipe_poly2 <- recipe(model_form, data = data_train) %>%
+  step_poly(horsepower, degree = 2) %>%
+  step_zv(all_predictors())
+
+lm_fit2 <- train(model_recipe_poly2, data = data_train, method = model_type, trControl = trControl)
+lm_fit2_test_predict <- lm_fit2 %>% predict(newdata = data_test, type = 'raw') # this would be the predictions for the 
+
+model_recipe_poly3 <- recipe(model_form, data = data_train) %>%
+  step_poly(horsepower, degree = 3) %>%
+  step_zv(all_predictors())
+
+lm_fit3 <- train(model_recipe_poly3, data = data_train, method = model_type, trControl = trControl)
+lm_fit3_test_predict <- lm_fit3 %>% predict(newdata = data_test, type = 'raw') # this would be the predictions for the 
+
+postResample(pred = lm_fit2_test_predict, obs = data_test[[target_var]])
+postResample(pred = lm_fit3_test_predict, obs = data_test[[target_var]])
+
+```
+
+## Leave-one-out Cross Validation
+
+Now, let's look at Leave-one-out cross validation. In this case, we always use n-1 observations for training, and the remaining 1 observations for validation. We do this n times for all combinations, which makes this method potentially very resourse-consuming. For LOOCV and k-fold cross validation, using the trainControl settings of the caret package make it more convenient to calculate the performance on the holdout sets. 
+
+```{r LOO}
+
+# let's demonstrate this on a regression model
+
+# good news: we can leave most of our modeling pipeline the same
+# the only aspect that needs updates is the trainControl function
+
+# note that for standard linear regression, lm() and glm() will produce the same result
+trControl <- trainControl(method = "LOOCV", savePredictions = TRUE)
+
+# use LOOCV on the entire dataset
+lm_fit <- train(model_recipe, data = data, method = model_type, trControl = trControl)
+lm_fit
+
+# we can get the results of the resampling as follows:
+(lm_fit_loocv_results <- lm_fit$results)
+
+# now, if we want to find out which polynomial regression to choose, we can define a simple loop, calculate the LOOCV RMSE for each polynomial degree, and select the lowest one
+
+# let's see how the LOOCV MSE is for various polynomial regression models
+# we can use this to identify the 'best' one
+Results_LOOCV <- lm_fit_loocv_results
+degree <- 2:5
+for (d in degree){
+  model_recipe <- recipe(model_form, data = data) %>%
+  step_poly(horsepower, degree = d) %>%
+  step_zv(all_predictors())
+
+  # form <- bquote(mpg ~ poly(horsepower, .(d), raw=TRUE))
+  lm_fit <- train(model_recipe, data = data, method = model_type, trControl = trControl)
+  print(lm_fit$results)
+  Results_LOOCV[d,] <- lm_fit$results
+}
+
+Results_LOOCV
+
+# visualize and select the best one
+Results_LOOCV %>% ggplot(aes(x = 1:5, y = RMSE)) + geom_line()
+Results_LOOCV[which.min(Results_LOOCV$RMSE),]
+
+```
+
+## K-fold Cross Validation
+
+Then, let's look at the standard method of resampling: k-fold cross validation. Common values for k are 5 or 10. The code below uses k-fold cross validation for a classification problem. For a regression problem, we can simply adjust the trainControl setting from 'LOOCV' to 'cv'
+
+```{r k-foldCV}
+
+# we can reuse the previous code, the only thing we need to change is the number of folds K
+
+library(pROC)
+source("../Utils.R")
+set.seed(17)
+
+# another note: the trainControl function selects the initial factor level as the 'preferred' level. if we want to change this, we should adjust the data itself 
+heart <- read_csv("Heart.csv")
+# note that the first column is only the observation index. we can delete this
+dataset <- prepare_heart(heart)
+
+target_var <- 'AHD'
+# note: we can specify the formula like this. if you specify individual predictors, they have to match the column names in the dataset
+model_form <- AHD ~ Age + Sex + RestBP + Chol + Ca
+model_type <- "glm"
+positive_class <- "Yes"
+negative_class <- "No"
+
+model_recipe <- recipe(model_form, data = dataset) %>% 
+  step_novel(all_predictors(), -all_numeric()) %>%
+  step_unknown(all_predictors(), -all_numeric()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_predictors())
+
+# note: if you want to get the predictions for each fold, we need to set the appropriate parameter
+# note 2: the twoClassSummary returns the average ROC, sensitivity, and specificity values. if you use defaultSummary instead, you get the average accuracy
+trControl <- trainControl(method = 'cv', number = 10, savePredictions = TRUE, classProbs = TRUE, summaryFunction = twoClassSummary)
+
+glm_fit <- train(model_recipe , data = dataset, method = model_type, trControl = trControl, metric = 'ROC') # the metric parameter indicates which metric the cross validation will focus on
+glm_fit
+
+# we can get the results of the resampling, averaged over the k folds, as follows:
+(glm_fit_cv_results <- glm_fit$results)
+
+# we can also get a confusion matrix representing the 'average' performance
+confusionMatrix(glm_fit) # this gives you a percentage representation
+confusionMatrix(glm_fit, 'average') # this gives you an actual count
+confusionMatrix(glm_fit, 'none') # this gives you the aggregated count
+
+# if we want some additional information, we can use following parameters
+glm_fit$resample # gives you the average and kappa statistic (for metric = 'Accuracy' in train()) or ROC, Sensitivity, Specificity (for metric = 'ROC') for each fold
+
+# you can calculate the cross-validation error rate and other confusion matrix statistics through the $pred object:
+confusionMatrix(glm_fit$pred$pred, glm_fit$pred$obs, positive = positive_class)
+
+# sidenote: we can, e.g., also manually calculate the AUC score (or any other metric) for each fold and average it:
+all_predictions <- glm_fit$pred
+
+all_aucs <- data.frame('AUC' = double())
+
+for (fold in unique(all_predictions$Resample)){
+  local_data <- all_predictions %>% filter(Resample == fold) 
+  local_prob <- local_data %>% select(positive_class)
+  local_true <- local_data %>% select(obs)
+  # get the AUC value from roc
+  local_frame <- data.frame(local_true,local_prob)
+  all_aucs[nrow(all_aucs) + 1,] <- auc(roc(local_frame$obs, local_frame[[positive_class]]))
+}
+all_aucs
+
+```
+
+
+## Hands-on Session
+Now, let's try resampling on the titanic dataset. Create a 70/30 training-validation/test split, use k-fold cross validation on the training set to create a classification model, and compare its performance on the training and on the test set by calculating the confusion matrices for both training and test set.
+
+```{r hands-on1}
+
+titanic <- read_csv("Titanic.csv")
+# convert variables into factors
+dataset <- prepare_titanic(titanic)
+
+set.seed(1)
+
+
+
+```
+
+
+## Oversampling, undersampling, and SMOTE
+Finally, let's look at a common method for dealing with imbalanced classes in classification: SMOTE. It stands for Synthetic Minority Oversampling Technique. We can also use only over- or only undersampling.
+
+While there are several implementations, we'll use the 'themis' package as this allows us to include the handling of unbalanced data via the preprocessing step_ functions.
+
+```{r oversampling}
+# Oversampling via SMOTE
+# in this example, we will combine resampling with SMOTE
+
+# library(DMwR) # for the smote function
+library(caret) # for the confusion matrix
+library(themis)
+
+set.seed(3)
+
+heart <- read_csv("Heart_imbalanced.csv")
+dataset <- prepare_heart(heart)
+
+target_var <- 'AHD'
+# note: we can specify the formula like this. if you specify individual predictors, they have to match the column names in the dataset
+model_form <- AHD ~ Age + Sex + RestBP  + Ca
+model_type <- "glm"
+positive_class <- "Yes"
+negative_class <- "No"
+
+model_recipe <- recipe(model_form, data = dataset) %>% 
+  step_novel(all_predictors(), -all_numeric()) %>%
+  step_unknown(all_predictors(), -all_numeric()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_predictors())
+
+# then, let's split the data into training and test (don't use SMOTE for the test sets! it will create unrealistic performance measures)
+trainIndex <- createDataPartition(dataset[[target_var]], 1, 0.7, list = FALSE)
+data_train <- dataset %>% slice(trainIndex)
+data_test <- dataset %>% slice(-trainIndex)
+
+# let's look at the distribution of values first
+summary(data_train)
+summary(data_test)
+
+
+trControl <- trainControl(method = 'cv', number = 5, savePredictions = TRUE, classProbs = TRUE, summaryFunction = twoClassSummary)
+
+# build a logistic regression model first
+glm_fit <- train(model_recipe, data = data_train, method = model_type, trControl = trControl, metric = 'ROC') # the metric parameter indicates which metric the cross validation will focus on
+glm_fit
+
+# we can get the results of the resampling, averaged over the k folds, as follows:
+(glm_fit_cv_results <- glm_fit$results)
+
+# and then, calculate the predictions
+glm_fit_pred <- glm_fit %>% predict(newdata = data_test, type = 'raw')
+confusionMatrix(glm_fit_pred, data_test[[target_var]], positive = positive_class)
+
+
+### then, let's try this with SMOTE
+# we can use the step_smote function by specifying the target variable
+model_recipe_smote <- recipe(model_form, data = dataset) %>% 
+  step_novel(all_predictors(), -all_numeric()) %>%
+  step_unknown(all_predictors(), -all_numeric()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_smote(target_var)
+
+smote_fit <- train(model_recipe, data = data_train, method = model_type, trControl = trControl, metric = 'ROC') # the metric parameter indicates which metric the cross validation will focus on
+smote_fit
+
+# we can get the results of the resampling, averaged over the k folds, as follows:
+(smote_fit_cv_results <- smote_fit$results)
+
+# and then, calculate the predictions
+smote_fit_pred <- smote_fit %>% predict(newdata = data_test, type = 'raw')
+confusionMatrix(smote_fit_pred, data_test[[target_var]], positive = positive_class)
+
+
+### finally, let's try this with upsampling (alternatively: downsampling)
+# we can use the step_smote function by specifying the target variable
+model_recipe_smote <- recipe(model_form, data = dataset) %>% 
+  step_novel(all_predictors(), -all_numeric()) %>%
+  step_unknown(all_predictors(), -all_numeric()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_predictors()) %>% 
+  step_upsample(target_var)
+upsample_fit <- train(model_recipe, data = data_train, method = model_type, trControl = trControl, metric = 'ROC') # the metric parameter indicates which metric the cross validation will focus on
+upsample_fit
+
+# we can get the results of the resampling, averaged over the k folds, as follows:
+(upsample_fit_cv_results <- upsample_fit$results)
+
+# and then, calculate the predictions
+upsample_fit_pred <- upsample_fit %>% predict(newdata = data_test, type = 'raw')
+confusionMatrix(upsample_fit_pred, data_test[[target_var]], positive = positive_class)
+
+```
+

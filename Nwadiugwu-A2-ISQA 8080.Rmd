@@ -1,0 +1,496 @@
+---
+title: "Classification"
+author: "Nwadiugwu-A2-ISQA 8080"
+date: "September 22, 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## Classification - Logistic Regression
+
+Essential Classification algorithms using R. Implementing and evaluating Logistic Regression with R's glm function. 
+
+```{r LogReg}
+
+# set your working directory to the current file directory 
+tryCatch({
+  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+  }, error=function(cond){message(paste("cannot change working directory"))
+})
+
+library(ISLR)
+library(GGally)
+library(Hmisc)
+library(e1071)
+library(pROC)
+library(tidyverse)
+library(caret)
+library(skimr)
+library(tidymodels)
+
+# step 1:reading the file 
+census <- read_csv("Census.csv")
+
+```
+
+
+```{r LogReg}
+
+# the data preparation steps is performed in the Utils.R code 
+source("Utils.R")
+dataset <- prepare_census(census)
+names(dataset)
+dim(dataset)
+
+#An overview of the data 
+glimpse(dataset)
+
+# nicer:
+skim(dataset)
+
+# Scatterplots and pairwise comparisons
+ggpairs(census, aes(color = Income))
+
+#Calculating correlation between the variables made easier by getting the numerical columns only
+dataset_numeric <- dataset %>% select_if(is.numeric)
+cor(dataset_numeric)
+
+#Identifying correlated predictors using the caret package
+(high_correlation <- findCorrelation(cor(dataset_numeric), cutoff = 0.7))
+
+
+##### Logistic Regression #####
+
+#specifying the model
+target_var <- 'Income'
+model_form <- Income ~ Age + Sex + Race + MaritalStatus + WeeklyHours
+model_type <- "glm" # general linear model, which includes logistic regression
+positive_class <- "Yes"
+negative_class <- "No"
+
+# we create a data partition (training-test) by specifying our target variable
+set.seed(3456)
+train_index <- createDataPartition(y = dataset[[target_var]], p = 0.7, list = FALSE) # creata a 70-30 split
+
+Train <- dataset %>% slice(train_index)
+Test <- dataset %>% slice(-train_index)
+summary(Train)
+summary(Test)
+
+
+#Spliting data with Equal percentage split 
+#set.seed(3456)
+#trainIndex <- createDataPartition(dataset$Income, p = .7, list = FALSE, times = 1)
+#Train <- dataset[ trainIndex,]
+#Test <- dataset[-trainIndex,]
+#summary(Train)
+#summary(Test)
+
+model_recipe <- recipe(model_form, data = Train, family='binomial') %>%  step_zv(all_predictors())
+
+
+# step 3: specify training parameters and training the set
+
+# resampling with a CV of 10. we add savePredictions and classProbs to get the probability estimates from the predictions
+trControl <- trainControl(method='cv', number = 10, savePredictions = TRUE, classProbs = TRUE)
+
+#Running the glm function on the train result
+glm_fit <- train(model_recipe, data = Train, method = model_type, trControl = trControl)
+
+# step 4: evaluate the model
+# calling the summary function on the lm object will give you the basic regression output
+summary(glm_fit)
+
+coef(glm_fit$finalModel)
+
+summary(glm_fit$finalModel)$coef
+summary(glm_fit$finalModel)$coef[,1] #this gives you the point estimators only
+
+
+# step 5: get the predictions and evaluate the model performance
+# now, let's get the probabilities of Income (Yes or No) with the model
+glm_probs <- glm_fit %>% predict(newdata = Train, type = "prob") # This gives predictions on the training set!
+
+# show the first 10 predictions. 
+glm_probs[1:10, 2] # the '2' indicates the probability of predicting 'Yes'. 
+
+# Converting the above to binary predictions with a default threshold value of 0.5
+threshold <- 0.3220074
+glm_pred <- factor(ifelse(glm_probs[, positive_class] > threshold, positive_class, negative_class) , levels = levels(Train[[target_var]]))
+
+# note: for the standard threshold, we can also use the predict() function directly
+glm_pred_direct <- glm_fit %>% predict(newdata=Train, type='raw')
+
+# we can get the evaluation metrics confusion matrix from the model output:
+postResample(glm_pred, Train[[target_var]])
+
+#Displaying the confusion matrix and additional metrics.
+confusionMatrix(glm_pred, Train[[target_var]], positive = positive_class)
+
+# note: the previous data prep steps and code set the class of interest to 'yes' and calculates sensitivity and specificity accordingly. we can change that by manually providing the 'positive' class
+confusionMatrix(glm_pred, Train[[target_var]], positive = "No")
+
+#looking at the ROC curve
+(glm_roc <- roc(Train[[target_var]], glm_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class)))
+
+# get auc
+(Train_auc <- auc(glm_roc))
+
+# side note: how do we decide on the threshold to use?
+# one option is: select the threshold that maximizes the combined sensitivity and specificity (other options available, see documentation)
+(threshold <- coords(glm_roc, 'best')$threshold)
+
+
+# we can also create a confusion matrix when we have a threshold value other than 0.5
+#threshold <- 0.7
+#glm_pred <- factor(ifelse(glm_probs[, positive_class] > threshold, positive_class, negative_class) , levels = levels(Train[[target_var]]))
+# create the confusion matrix. note: the positive = 'Yes' parameter indicates that we see the 'Yes' outcome as the outcome of interest
+#confusionMatrix(glm_pred, Train[[target_var]], positive = positive_class)
+# finally, predict a specific value
+#newdata <- data.frame(Age=c(20), Sex = factor(c("0")), RestBP = c(140), Chol = c(0.2),  Ca = factor(c("0")))
+
+#Prediction using the Test set
+
+tglm_pred = glm_fit %>% predict(newdata = Test, type="raw") #creates the predicted class
+
+tglm_probs <- glm_fit %>% predict(newdata = Test, type = "prob") #This gives predictions on the test set!
+
+# show the first 10 predictions. 
+tglm_probs[1:10, 2] # the '2' indicates the probability of predicting 'Yes'.
+
+# then, let's convert this to binary predictions with estimated "best" threshold value 
+threshold <-  0.1702284 # from the threshold that maximizes the combined sensitivity and specificity
+tglm_pred <- factor(ifelse(tglm_probs[, positive_class] > threshold, positive_class, negative_class) , levels = levels(Test[[target_var]]))
+
+#The evaluation metrics and confusion matrix from the model output:
+postResample(tglm_pred, Test[[target_var]])
+
+# Displaying the confusion matrix and additional metrics.
+confusionMatrix(tglm_pred, Test[[target_var]], positive = positive_class)
+
+# note: the previous data prep steps and code set the class of interest to 'yes' and calculates sensitivity and specificity accordingly. we can change that by manually providing the 'positive' class
+confusionMatrix(tglm_pred, Test[[target_var]], positive = "No")
+
+#looking at the ROC curve
+
+(glm_roc <- roc(Test[[target_var]], tglm_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class)))
+
+#Getting the auc
+(Test_auc <- auc(glm_roc))
+
+# side note: how do we decide on the threshold to use?
+# one option is: select the threshold that maximizes the combined sensitivity and specificity (other options available, see documentation)
+(threshold <- coords(glm_roc, 'best')$threshold)
+
+```
+
+## Linear Discriminant Analysis (LDA)
+
+Now, let's look at LDA as an alternative model for classification. The MASS library has a ready-made lda() function that we'll use for this
+
+```{r lda}
+
+#using the preparation function for the dataset provided in the Utils.R script
+
+dataset <- NULL
+census <- read_csv("Census.csv")
+source("Utils.R") # load the functions provided in Utils.R
+dataset <- prepare_census(census)
+
+# we create a data partition (training-test) by specifying our target variable
+set.seed(3456)
+train_index <- createDataPartition(y = dataset[[target_var]], p = 0.7, list = FALSE) # creata a 70-30 split
+
+Train <- dataset %>% slice(train_index)
+Test <- dataset %>% slice(-train_index)
+
+# specifying the model
+target_var <- 'Income'
+model_form <- Income ~ Age + Sex + Race + MaritalStatus + WeeklyHours
+model_type <- 'lda'
+positive_class <- 'Yes'
+negative_class <- 'No'
+
+model_recipe <- recipe(model_form, data = dataset) %>% 
+  step_novel(all_predictors(), -all_numeric()) %>%
+  step_unknown(all_predictors(), -all_numeric()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_predictors())
+
+
+trControl <- trainControl(method='cv', number = 10, savePredictions = TRUE, classProbs = TRUE)
+
+# with the lda method, we can can specify the model just as we did with the glm function
+lda_fit <- train(model_recipe, data = Train, method = model_type, trControl = trControl)
+
+# the lda_fit object gives us some information about prior probabilities and coefficients of the linear discriminants
+lda_fit$finalModel
+
+
+# we can also use the predict function again to predict new outcomes
+lda_class <- lda_fit %>% predict(type ='raw', newdata = Train) # this assumes a threshold of 0.5
+lda_probs <- lda_fit %>% predict(type = 'prob', newdata = Train)
+
+lda_probs[1:10, 2] # the '2' indicates the probability of predicting 'Yes'. 
+
+# then, let's convert this to binary predictions with a default threshold value of 0.5
+threshold <-  0.3517934 # from the threshold that maximizes the combined sensitivity and specificity
+lda_pred <- factor(ifelse(lda_probs[, positive_class] > threshold, positive_class, negative_class) , levels = levels(Train[[target_var]]))
+
+
+confusionMatrix(lda_pred, Train[[target_var]], positive = positive_class)
+
+# ROC curve
+lda_roc <- roc(Train[[target_var]], lda_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class))
+# get auc
+(lda_Train_auc <- auc(lda_roc))
+(threshold <- coords(lda_roc, 'best')$threshold)
+
+
+#Prediction using the Test set
+
+tlda_class <- lda_fit %>% predict(type ='raw', newdata = Test) # this assumes a threshold of 0.5
+tlda_probs <- lda_fit %>% predict(type = 'prob', newdata = Test)
+
+# show the first 10 predictions. 
+tlda_probs[1:10, 2] # the '2' indicates the probability of predicting 'Yes'. 
+
+# converting this to binary predictions with a default threshold value of 0.5
+threshold <-  0.3347885 # from the threshold that maximizes the combined sensitivity and specificity
+tlda_pred <- factor(ifelse(tlda_probs[, positive_class] > threshold, positive_class, negative_class) , levels = levels(Test[[target_var]]))
+
+# Evaluation metrics confusion matrix from the model output:
+postResample(tlda_pred, Test[[target_var]])
+
+#Displaying the confusion matrix and additional metrics.
+confusionMatrix(tlda_pred, Test[[target_var]], positive = positive_class)
+
+# or  we can change that by manually providing the class
+confusionMatrix(tlda_pred, Test[[target_var]], positive = "No")
+
+# and looking at the ROC curve
+(tlda_roc <- roc(Test[[target_var]], tlda_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class)))
+
+# getting the auc
+(ldaTest_auc <- auc(tlda_roc))
+
+# side note: how do we decide on the threshold to use?
+# one option is: select the threshold that maximizes the combined sensitivity and specificity (other options available, see documentation)
+(threshold <- coords(tlda_roc, 'best')$threshold)
+
+```
+
+## QDA
+
+Let's look at an alternative to LDA: the Quadratic Discriminant Analysis. As the name implies, it uses non-linear (quadratic) decision boundaries instead of linear ones. We will again use the MASS library as it provides a qda() function for this.
+
+```{r qda}
+
+dataset <- NULL
+census <- read_csv("Census.csv")
+source("Utils.R") # load the functions provided in Utils.R
+dataset <- prepare_census(census)
+
+
+# Quadratic Discriminant Analysis
+target_var <- 'Income'
+model_form <- Income ~ Age + Sex + Race + MaritalStatus + WeeklyHours
+model_type <- 'qda'
+positive_class <- 'Yes'
+negative_class <- 'No'
+
+# QDA relies on full rank matrices, and if the underlying data (model) matrix does not have full rank, it will throw an error message. hence, let's catch this case using tryCatch so that we can still create the markdown document.
+# Alternatively, and preferrably, one common thing to try is to change step_zv (remove zero variance) to 
+# step_nzv (remove near zero variance), as near zero variance predictors often are not particularly useful but can create computation issues
+
+model_recipe <- recipe(model_form, data = dataset) %>% 
+  step_novel(all_predictors(), -all_numeric()) %>%
+  step_unknown(all_predictors(), -all_numeric()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_zv(all_predictors()) # or: step_nzv()
+
+#Equal percentage split 
+set.seed(3456)
+train_index <- createDataPartition(y = dataset[[target_var]], p = 0.7, list = FALSE) # creata a 70-30 split
+
+Train <- dataset %>% slice(train_index)
+Test <- dataset %>% slice(-train_index)
+
+tryCatch({
+  
+  trControl <- trainControl(method='cv', number = 10, savePredictions = TRUE, classProbs = TRUE)
+
+  # with qhe lda method, we can can specify the model just as we did with the glm function
+  qda_fit <- train(model_recipe, data = Train, method = model_type, trControl = trControl)
+  
+  # the qda_fit object gives us some information about prior probabilities and coefficients of the linear discriminants
+  qda_fit$finalModel
+  
+  # we can also use the predict function again to predict new outcomes
+  qda_class <- qda_fit %>%  predict(type ='raw', newdata = Train) # this assumes a threshold of 0.5
+  qda_probs <- qda_fit %>% predict(type = 'prob', newdata = Train)
+  
+qda_probs[1:10, 2] # the '2' indicates the probability of predicting 'Yes'. 
+
+threshold = 0.1656443
+qda_pred <- factor(ifelse(qda_probs[, positive_class] > threshold, positive_class, negative_class), levels = levels(Train[[target_var]]))
+
+confusionMatrix(qda_pred, Train[[target_var]], positive = positive_class)
+  
+  # ROC curve
+  qda_roc <- roc(Train[[target_var]], qda_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class))
+  # get auc
+  (qda_auc <- auc(qda_roc))
+  (threshold <- coords(qda_roc, 'best')$threshold)
+
+  
+#Prediction using the Test set
+
+tqda_class <- qda_fit %>% predict(type ='raw', newdata = Test) # this assumes a threshold of 0.5
+tqda_probs <- qda_fit %>% predict(type = 'prob', newdata = Test)
+
+# show the first 10 predictions. 
+tqda_probs[1:10, 2] # the '2' indicates the probability of predicting 'Yes'. see the glm_probs dataset for further details
+
+# then, let's convert this to binary predictions with a default threshold value of 0.5
+threshold <-  0.1532303 # from the threshold that maximizes the combined sensitivity and specificity
+tqda_pred <- factor(ifelse(tqda_probs[, positive_class] > threshold, positive_class, negative_class) , levels = levels(Test[[target_var]]))
+
+# we can get the evaluation metrics confusion matrix from the model output:
+postResample(tqda_pred, Test[[target_var]])
+
+# we can use following function to display the confusion matrix and additional metrics.
+confusionMatrix(tqda_pred, Test[[target_var]], positive = positive_class)
+
+#  we can change that by manually providing the 'positive' class
+confusionMatrix(tqda_pred, Test[[target_var]], positive = "No")
+
+# and look at the ROC curve
+
+(tqda_roc <- roc(Test[[target_var]], tqda_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class)))
+# get auc
+(qdaTest_auc <- auc(tqda_roc))
+
+# side note: how do we decide on the threshold to use?
+# one option is: select the threshold that maximizes the combined sensitivity and specificity (other options available, see documentation)
+(threshold <- coords(tqda_roc, 'best')$threshold)
+
+}, error=function(cond){message(paste("error while creating the QDA model"))
+})
+
+```
+
+## KNN (k-Nearest Neighbors)
+
+Finally, let's see how we can implement knn classification in R. We'll use the knn function of the caret package for this.
+
+```{r knn}
+
+
+dataset <- NULL
+census <- read_csv("Census.csv")
+source("Utils.R") # load the functions provided in Utils.R
+dataset <- prepare_census(census)
+
+
+# KNN Analysis
+target_var <- 'Income'
+model_form <- Income ~ Age + Sex + Race + MaritalStatus + WeeklyHours
+positive_class <- 'Yes'
+negative_class <- 'No'
+#threshold <- 0.5
+model_type <- "knn"
+
+
+#Equal percentage split 
+set.seed(3456)
+train_index <- createDataPartition(y = dataset[[target_var]], p = 0.7, list = FALSE) # creata a 70-30 split
+
+Train <- dataset %>% slice(train_index)
+Test <- dataset %>% slice(-train_index)
+
+
+model_recipe <- recipe(model_form, data = dataset) %>%
+  step_novel(all_predictors(), -all_numeric()) %>%
+  step_unknown(all_predictors(), -all_numeric()) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_normalize(all_predictors()) %>%
+  step_zv(all_predictors())
+
+# as we need to evaluate different values of k, we can use the 'grid search' function of caret to loop through different values of k.
+
+trControl <- trainControl(method='cv', number = 10, savePredictions = TRUE, classProbs = TRUE)
+
+# let's build an initial model with k = 10
+tuneGrid <- expand.grid(k = 10) # note: a grid search usually considers a set of parameters, not only one. However, in the current implementation of caret only one parameter is allowed when we don't use resampling
+knn_fit <- train(model_recipe, data = Train, method = model_type, trControl = trControl, tuneGrid = tuneGrid)
+knn_fit$finalModel 
+
+# side note: if you want to automatically loop through multiple values of k, you need to delete the trControl parameter (courtesy of caret)
+#tuneGrid <- expand.grid(k = seq(3,7,2)) 
+#knn_fit <- train(model_recipe, data = dataset, method = model_type, tuneGrid = tuneGrid)
+#knn_fit # note: the accuracy values shown here are much lower than the ones before, mostly because caret uses an implicit bootstrapping resampling to estimate the predicted accuracy
+
+# get the probabilities and predictions
+
+knn_fit_probs <- knn_fit %>% predict(type = "prob", newdata = Train) # due to a curiosity in caret, we need to specify the data on which we want to get the predictions. here: the entire dataset
+knn_fit_class <- knn_fit %>% predict(type = 'raw', newdata = Train) 
+knn_fit_probs[1:10, 2]
+
+
+threshold = 0.2440476
+knn_pred <- factor(ifelse(knn_fit_probs[, positive_class] > threshold, positive_class, negative_class), levels = levels(Train[[target_var]]))
+
+
+confusionMatrix(knn_pred, Train[[target_var]], positive = positive_class)
+
+
+# ROC curve
+knn_roc <- roc(Train[[target_var]], knn_fit_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class))
+  # get auc
+  (knn_auc <- auc(knn_roc))
+#get best threshold
+  (threshold <- coords(knn_roc, 'best')$threshold)
+
+  
+#Prediction using the Test set
+
+tknn_class <- knn_fit %>% predict(type ='raw', newdata = Test) # this assumes a threshold of 0.5
+tknn_probs <- knn_fit %>% predict(type = 'prob', newdata = Test)
+
+# show the first 10 predictions. 
+tknn_probs[1:10, 2] # the '2' indicates the probability of predicting 'Yes'. see the glm_probs dataset for further details
+
+# then, let's convert this to binary predictions with a default threshold value of 0.5
+threshold <-  0.2264957 # from the threshold that maximizes the combined sensitivity and specificity
+tknn_pred <- factor(ifelse(tknn_probs[, positive_class] > threshold, positive_class, negative_class) , levels = levels(Test[[target_var]]))
+
+# we can get the evaluation metrics confusion matrix from the model output:
+postResample(tknn_pred, Test[[target_var]])
+
+# we can use following function to display the confusion matrix and additional metrics.
+confusionMatrix(tknn_pred, Test[[target_var]], positive = positive_class)
+
+#  we can change that by manually providing the 'positive' class
+confusionMatrix(tknn_pred, Test[[target_var]], positive = "No")
+
+# and look at the ROC curve
+
+(tknn_roc <- roc(Test[[target_var]], tknn_probs[, positive_class], plot = TRUE, print.auc = TRUE, legacy.axes = TRUE, levels = c(negative_class, positive_class)))
+# get auc
+(knnTest_auc <- auc(tknn_roc))
+
+# side note: how do we decide on the threshold to use?
+# one option is: select the threshold that maximizes the combined sensitivity and specificity (other options available, see documentation)
+(threshold <- coords(tknn_roc, 'best')$threshold)
+
+```
+
+## The end
+

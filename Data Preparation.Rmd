@@ -1,0 +1,264 @@
+---
+title: 'Project 1: Data Understanding & Preparation'
+author: "Martin Nwadiugwu"
+date: "9/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load libraries with additional functionality
+library(ggplot2) # library for plots
+library(reshape2) # library for data handling
+library(tidyverse) # library for general data processing and handling
+library(skimr) # to get a better formatted overview of the data
+library(naniar)# to get idea of missing values
+library(dplyr)# for re-ordering of columns
+
+setwd("C:/Users/mnwadiugwu/Desktop/ML/Assignment 1")
+
+# reading the modeldata file and assigning 'NA' to empty cells
+modeldata <- read.csv("modeldata_aug2020.csv", header = TRUE, na.strings=c("","NA"))
+testdata <- read.csv(file = "testdata_aug2020.csv", header = TRUE, na.strings=c("","NA"))
+
+#Duplication columns to be transformed
+
+modeldata2 = cbind(modeldata, rep(modeldata$HQ_Country,1), rep(modeldata$NAICS2, 1), rep(modeldata$NAICS3,1))
+testdata2 = cbind(testdata, rep(testdata$HQ_Country,1), rep(testdata$NAICS2, 1), rep(testdata$NAICS3,1))
+
+#reordering columns
+modeldata2 <- modeldata2[ ,c(1,2:11,14,12,15,13,16)]
+testdata2 <- testdata2[ ,c(1,2:9,12,10,13,11,14)]
+
+#renaming columns
+names(modeldata2)[names(modeldata2) == "rep(modeldata$HQ_Country, 1)"] <- "HQ_Country2"
+names(modeldata2)[names(modeldata2) == "rep(modeldata$NAICS2, 1)"] <- "NAICS2.2"
+names(modeldata2)[names(modeldata2) == "rep(modeldata$NAICS3, 1)"] <- "NAICS3.3"
+#testdata
+names(testdata2)[names(testdata2) == "rep(testdata$HQ_Country, 1)"] <- "HQ_Country2"
+names(testdata2)[names(testdata2) == "rep(testdata$NAICS2, 1)"] <- "NAICS2.2"
+names(testdata2)[names(testdata2) == "rep(testdata$NAICS3, 1)"] <- "NAICS3.3"
+
+
+#checking for NAs and complete values
+any_complete(modeldata$HQ_Country)
+any_na(modeldata$HQ_Country)
+any_miss(modeldata$HQ_Country)
+miss_var_summary(modeldata)
+
+#Converting Cataegorical data variables as factor
+modeldata2$HQ_Country= as.factor(modeldata2$HQ_Country)
+modeldata2$NAICS2= as.factor(modeldata2$NAICS2)
+modeldata2$NAICS3= as.factor(modeldata2$NAICS3)
+#table(modeldata2$HQ_Country)
+#table(modeldata2$NAICS2)
+#table(modeldata2$NAICS3)
+
+#testdata
+testdata2$HQ_Country= as.factor(testdata2$HQ_Country)
+testdata2$NAICS2= as.factor(testdata2$NAICS2)
+testdata2$NAICS3= as.factor(testdata2$NAICS3)
+
+```
+
+#Data transformations
+# we can also adjust an existing variable
+
+
+```{r include=FALSE}
+
+modeldata2 <- modeldata2 %>% mutate(HQ_Country, HQ_Country = recode(HQ_Country, 'Antigua and Barbuda' ='1', 'Argentina' = '2', 'Australia'='3', 'Austria' = '4', 'Bahrain'='5', 'Bangladesh'='6', 'Belgium'='7', 'Bermuda'='8', 'Brazil'='9', 'British Virgin Island'='10', 'Bulgaria'='11', 'Canada'='12', 'Cayman Islands'='13', 'Chile'='14','China'='15', 'Colombia'='16', 'CONFLICT' ='17', 'Costa Rica'='18', 'Cyprus'='19', 'Czech Republic'='20', 'Denmark'='21', 'Dominican Republic'='22', 'Ecuador'='23', 'Egypt'='24', 'Estonia'='25', 'Finland'='26', 'France'='27', 'Germany'='28', 'Greece'='29', 'Guatemala'='30', 'Guernsey'='31', 'Hong Kong' ='32', 'Hong Kong, SAR China'='33', 'Hungary'='34', 'India'='35','Indonesia'='36', 'Ireland'='37','Israel'='38','Italy'='39','Japan'='40','Jersey'='41', 'Jordan'='42', 'Kenya'='43', 'Korea (South)'='44', 'Latvia'='45','Lebanon'='46', 'Liechtenstein'='47', 'Luxembourg'='48', 'Macao, SAR China'='49', ' Malaysia'='50', 'Malta'='51', 'Mexico'='52', 'Monaco'='53','Namibia'='54','Netherlands'='55',' Netherlands Antilles' = '56', 'New Caledonia' ='57', 'New Zealand'='58', 'Norway'='59', 'Not Available'='60', 'Oman'='61', 'Panama'='62', 'Peru'='63', 'Philippines'='64','Poland'='65', 'Portugal'='66', 'Puerto Rico'='67','Qatar'='68','Romania'='69', 'Russian Federation'='70','Rwanda'='71', 'Saudi Arabia'='72', 'Sierra Leone'='73',  'Singapore'='74', 'Slovakia'='75', 'Slovenia'='76',  'South Africa'='77', 'South Korea' = '78', 'Spain'='79', 'Sri Lanka'='80', 'Sweden'='81', 'Switzerland'='82','Taiwan'='83','Taiwan, Republic of China'='84', 'Tanzania'='85', 'Thailand'='86', 'Tunisia'='87', 'Turkey'='88', 'Ukraine'='89', 'United Arab Emirates'='90', 'United Kingdom'='91', 'United States'='92', 'Uruguay'='93', 'Venezuela'='94', 'Venezuela (Bolivarian Republic)'='95', 'Viet Nam'='96', 'Virgin Islands, US' ='97'))
+
+modeldata2 <- modeldata2 %>% mutate(NAICS2, NAICS2 = recode(NAICS2,'11-Agriculture, Forestry, Fishing and Hunting' ='1', '21-Mining, Quarrying, and Oil and Gas Extraction'='2','22-Utilities'='3','23-Construction'='4', '31-Manufacturing'='5','32-Manufacturing'='6', '33-Manufacturing'='7', '42-Wholesale Trade'='8', '44-Retail Trade'='9', '45-Retail Trade'='10', '48-Transportation and Warehousing'='11', '49-Transportation and Warehousing'='12', '51-Information'='13','52-Finance and Insurance'='14',  '53-Real Estate and Rental and Leasing'='15', '54-Professional, Scientific, and Technical Services'='16', '55-Management of Companies and Enterprises'='17', '56-Administrative and Support and Waste Management and Remediation Services'='18','61-Educational Services'='19', '62-Health Care and Social Assistance'='20', '71-Arts, Entertainment, and Recreation'='21', '72-Accommodation and Food Services'='22', '81-Other Services (except Public Administration)'='23', '92-Public Administration'='24', '99-UNKNOWN' ='25', 'CONFLICT'='26', 'Not Available'='27'))        
+                                                                  
+modeldata2 <- modeldata2 %>% mutate(NAICS3, NAICS3 = recode(NAICS3,'111-Crop Production'='1', '112-Animal Production and Aquaculture'='2', '113-Forestry and Logging'='3','115-Support Activities for Agriculture and Forestry'= '4', '211-Oil and Gas Extraction'='5','212-Mining (except Oil and Gas)'='6','213-Support Activities for Mining'='7','221-Utilities'='8', '236-Construction of Buildings'='9', '237-Heavy and Civil Engineering Construction'='10', '238-Specialty Trade Contractors'='11','311-Food Manufacturing'='12', '312-Beverage and Tobacco Product Manufacturing'='13','313-Textile Mills'='14', '314-Textile Product Mills'='15','315-Apparel Manufacturing'='16','316-Leather and Allied Product Manufacturing'='17','321-Wood Product Manufacturing'='18', '322-Paper Manufacturing'='19','323-Printing and Related Support Activities'='20', '324-Petroleum and Coal Products Manufacturing' ='21', '325-Chemical Manufacturing'='22', '326-Plastics and Rubber Products Manufacturing' ='23','327-Nonmetallic Mineral Product Manufacturing'='24','331-Primary Metal Manufacturing'='25','332-Fabricated Metal Product Manufacturing'='26','333-Machinery Manufacturing'='27', '334-Computer and Electronic Product Manufacturing'='28', '335-Electrical Equipment, Appliance, and Component Manufacturing'='29', '336-Transportation Equipment Manufacturing'='30', '337-Furniture and Related Product Manufacturing'='31','339-Miscellaneous Manufacturing'='32', '423-Merchant Wholesalers, Durable Goods'='33', '424-Merchant Wholesalers, Nondurable Goods'='34', '441-Motor Vehicle and Parts Dealers'='35', '442-Furniture and Home Furnishings Stores'='36', '443-Electronics and Appliance Stores'='37', '444-Building Material and Garden Equipment and Supplies Dealers'='38', '445-Food and Beverage Stores'='39', '446-Health and Personal Care Stores '='40','447-Gasoline Stations'='41','448-Clothing and Clothing Accessories Stores'='42', '451-Sporting Goods, Hobby, Musical Instrument, and Book Stores'='43','452-General Merchandise Stores'='44','453-Miscellaneous Store Retailers'='45','454-Nonstore Retailers'='46','481-Air Transportation'='47','482-Rail Transportation'='48','483-Water Transportation'='49','484-Truck Transportation'='50'))
+
+modeldata2 <- modeldata2 %>% mutate(NAICS3, NAICS3 = recode(NAICS3,'485-Transit and Ground Passenger Transportation'='51', '486-Pipeline Transportation'='52','487-Scenic and Sightseeing Transportation '='53','488-Support Activities for Transportation'='54','491-Postal Service'='55','492-Couriers and Messengers'='56','493-Warehousing and Storage'='57','511-Publishing Industries (except Internet)'='58','512-Motion Picture and Sound Recording Industries'='59','515-Broadcasting (except Internet)'='60','517-Telecommunications'='61','518-Data Processing, Hosting, and Related Services'='62','519-Other Information Services'='63','521-Monetary Authorities-Central Bank'='64','522-Credit Intermediation and Related Activities'='65','523-Securities, Commodity Contracts, and Other Financial Investments and Related Activities'='66','524-Insurance Carriers and Related Activities'='67','525-Funds, Trusts, and Other Financial Vehicles'='68','531-Real Estate'='69','532-Rental and Leasing Services'='70','533-Lessors of Nonfinancial Intangible Assets (except Copyrighted Works)'='71','541-Professional, Scientific, and Technical Services'='72','551-Management of Companies and Enterprises'='73','561-Administrative and Support Services'='74','562-Waste Management and Remediation Services'='75','611-Educational Services'='76','621-Ambulatory Health Care Services'='77','622-Hospitals'='78','623-Nursing and Residential Care Facilities'='79','624-Social Assistance'='80','711-Performing Arts, Spectator Sports, and Related Industries'='81','712-Museums, Historical Sites, and Similar Institutions'='82','713-Amusement, Gambling, and Recreation Industries'='83','721-Accommodation'='84','722-Food Services and Drinking Places'='85', '811-Repair and Maintenance'='86','812-Personal and Laundry Services'='87','813-Religious, Grantmaking, Civic, Professional, and Similar Organizations'='88','921-Executive, Legislative, and Other General Government Support'='89','922-Justice, Public Order, and Safety Activities'='90','923-Administration of Human Resource Programs'='91','924-Administration of Environmental Quality Programs'='92','925-Administration of Housing Programs, Urban Planning, and Community Development'='93','926-Administration of Economic Programs'='94','928-National Security and International Affairs'='95','999-UNKNOWN'='96','CONFLICT'='97','Not Available'='98'))
+                                                          
+#testdata
+
+testdata2 <- testdata2 %>% mutate(HQ_Country, HQ_Country = recode(HQ_Country, 'Antigua and Barbuda' ='1', 'Argentina' = '2', 'Australia'='3', 'Austria' = '4', 'Bahrain'='5', 'Bangladesh'='6', 'Belgium'='7', 'Bermuda'='8', 'Brazil'='9', 'British Virgin Island'='10', 'Bulgaria'='11', 'Canada'='12', 'Cayman Islands'='13', 'Chile'='14','China'='15', 'Colombia'='16', 'CONFLICT' ='17', 'Costa Rica'='18', 'Cyprus'='19', 'Czech Republic'='20', 'Denmark'='21', 'Dominican Republic'='22', 'Ecuador'='23', 'Egypt'='24', 'Estonia'='25', 'Finland'='26', 'France'='27', 'Germany'='28', 'Greece'='29', 'Guatemala'='30', 'Guernsey'='31', 'Hong Kong' ='32', 'Hong Kong, SAR China'='33', 'Hungary'='34', 'India'='35','Indonesia'='36', 'Ireland'='37','Israel'='38','Italy'='39','Japan'='40','Jersey'='41', 'Jordan'='42', 'Kenya'='43', 'Korea (South)'='44', 'Latvia'='45','Lebanon'='46', 'Liechtenstein'='47', 'Luxembourg'='48', 'Macao, SAR China'='49', ' Malaysia'='50', 'Malta'='51', 'Mexico'='52', 'Monaco'='53','Namibia'='54','Netherlands'='55',' Netherlands Antilles' = '56', 'New Caledonia' ='57', 'New Zealand'='58', 'Norway'='59', 'Not Available'='60', 'Oman'='61', 'Panama'='62', 'Peru'='63', 'Philippines'='64','Poland'='65', 'Portugal'='66', 'Puerto Rico'='67','Qatar'='68','Romania'='69', 'Russian Federation'='70','Rwanda'='71', 'Saudi Arabia'='72', 'Sierra Leone'='73',  'Singapore'='74', 'Slovakia'='75', 'Slovenia'='76',  'South Africa'='77', 'South Korea' = '78', 'Spain'='79', 'Sri Lanka'='80', 'Sweden'='81', 'Switzerland'='82','Taiwan'='83','Taiwan, Republic of China'='84', 'Tanzania'='85', 'Thailand'='86', 'Tunisia'='87', 'Turkey'='88', 'Ukraine'='89', 'United Arab Emirates'='90', 'United Kingdom'='91', 'United States'='92', 'Uruguay'='93', 'Venezuela'='94', 'Venezuela (Bolivarian Republic)'='95', 'Viet Nam'='96', 'Virgin Islands, US' ='97'))
+
+testdata2 <- testdata2 %>% mutate(NAICS2, NAICS2 = recode(NAICS2,'11-Agriculture, Forestry, Fishing and Hunting' ='1', '21-Mining, Quarrying, and Oil and Gas Extraction'='2','22-Utilities'='3','23-Construction'='4', '31-Manufacturing'='5','32-Manufacturing'='6', '33-Manufacturing'='7', '42-Wholesale Trade'='8', '44-Retail Trade'='9', '45-Retail Trade'='10', '48-Transportation and Warehousing'='11', '49-Transportation and Warehousing'='12', '51-Information'='13','52-Finance and Insurance'='14',  '53-Real Estate and Rental and Leasing'='15', '54-Professional, Scientific, and Technical Services'='16', '55-Management of Companies and Enterprises'='17', '56-Administrative and Support and Waste Management and Remediation Services'='18','61-Educational Services'='19', '62-Health Care and Social Assistance'='20', '71-Arts, Entertainment, and Recreation'='21', '72-Accommodation and Food Services'='22', '81-Other Services (except Public Administration)'='23', '92-Public Administration'='24', '99-UNKNOWN' ='25', 'CONFLICT'='26', 'Not Available'='27'))        
+                                                                  
+testdata2 <- testdata2 %>% mutate(NAICS3, NAICS3 = recode(NAICS3,'111-Crop Production'='1', '112-Animal Production and Aquaculture'='2', '113-Forestry and Logging'='3','115-Support Activities for Agriculture and Forestry'= '4', '211-Oil and Gas Extraction'='5','212-Mining (except Oil and Gas)'='6','213-Support Activities for Mining'='7','221-Utilities'='8', '236-Construction of Buildings'='9', '237-Heavy and Civil Engineering Construction'='10', '238-Specialty Trade Contractors'='11','311-Food Manufacturing'='12', '312-Beverage and Tobacco Product Manufacturing'='13','313-Textile Mills'='14', '314-Textile Product Mills'='15','315-Apparel Manufacturing'='16','316-Leather and Allied Product Manufacturing'='17','321-Wood Product Manufacturing'='18', '322-Paper Manufacturing'='19','323-Printing and Related Support Activities'='20', '324-Petroleum and Coal Products Manufacturing' ='21', '325-Chemical Manufacturing'='22', '326-Plastics and Rubber Products Manufacturing' ='23','327-Nonmetallic Mineral Product Manufacturing'='24','331-Primary Metal Manufacturing'='25','332-Fabricated Metal Product Manufacturing'='26','333-Machinery Manufacturing'='27', '334-Computer and Electronic Product Manufacturing'='28', '335-Electrical Equipment, Appliance, and Component Manufacturing'='29', '336-Transportation Equipment Manufacturing'='30', '337-Furniture and Related Product Manufacturing'='31','339-Miscellaneous Manufacturing'='32', '423-Merchant Wholesalers, Durable Goods'='33', '424-Merchant Wholesalers, Nondurable Goods'='34', '441-Motor Vehicle and Parts Dealers'='35', '442-Furniture and Home Furnishings Stores'='36', '443-Electronics and Appliance Stores'='37', '444-Building Material and Garden Equipment and Supplies Dealers'='38', '445-Food and Beverage Stores'='39', '446-Health and Personal Care Stores '='40','447-Gasoline Stations'='41','448-Clothing and Clothing Accessories Stores'='42', '451-Sporting Goods, Hobby, Musical Instrument, and Book Stores'='43','452-General Merchandise Stores'='44','453-Miscellaneous Store Retailers'='45','454-Nonstore Retailers'='46','481-Air Transportation'='47','482-Rail Transportation'='48','483-Water Transportation'='49','484-Truck Transportation'='50'))
+
+testdata2 <- testdata2 %>% mutate(NAICS3, NAICS3 = recode(NAICS3,'485-Transit and Ground Passenger Transportation'='51', '486-Pipeline Transportation'='52','487-Scenic and Sightseeing Transportation '='53','488-Support Activities for Transportation'='54','491-Postal Service'='55','492-Couriers and Messengers'='56','493-Warehousing and Storage'='57','511-Publishing Industries (except Internet)'='58','512-Motion Picture and Sound Recording Industries'='59','515-Broadcasting (except Internet)'='60','517-Telecommunications'='61','518-Data Processing, Hosting, and Related Services'='62','519-Other Information Services'='63','521-Monetary Authorities-Central Bank'='64','522-Credit Intermediation and Related Activities'='65','523-Securities, Commodity Contracts, and Other Financial Investments and Related Activities'='66','524-Insurance Carriers and Related Activities'='67','525-Funds, Trusts, and Other Financial Vehicles'='68','531-Real Estate'='69','532-Rental and Leasing Services'='70','533-Lessors of Nonfinancial Intangible Assets (except Copyrighted Works)'='71','541-Professional, Scientific, and Technical Services'='72','551-Management of Companies and Enterprises'='73','561-Administrative and Support Services'='74','562-Waste Management and Remediation Services'='75','611-Educational Services'='76','621-Ambulatory Health Care Services'='77','622-Hospitals'='78','623-Nursing and Residential Care Facilities'='79','624-Social Assistance'='80','711-Performing Arts, Spectator Sports, and Related Industries'='81','712-Museums, Historical Sites, and Similar Institutions'='82','713-Amusement, Gambling, and Recreation Industries'='83','721-Accommodation'='84','722-Food Services and Drinking Places'='85', '811-Repair and Maintenance'='86','812-Personal and Laundry Services'='87','813-Religious, Grantmaking, Civic, Professional, and Similar Organizations'='88','921-Executive, Legislative, and Other General Government Support'='89','922-Justice, Public Order, and Safety Activities'='90','923-Administration of Human Resource Programs'='91','924-Administration of Environmental Quality Programs'='92','925-Administration of Housing Programs, Urban Planning, and Community Development'='93','926-Administration of Economic Programs'='94','928-National Security and International Affairs'='95','999-UNKNOWN'='96','CONFLICT'='97','Not Available'='98', '446-Health and Personal Care Stores'='99'))
+
+#converting to numeric type
+modeldata2$HQ_Country = as.numeric(modeldata2$HQ_Country)
+modeldata2$NAICS2 = as.numeric(modeldata2$NAICS2)
+modeldata2$NAICS3 = as.numeric(modeldata2$NAICS3)
+#testdata
+testdata2$HQ_Country = as.numeric(testdata2$HQ_Country)
+testdata2$NAICS2 = as.numeric(testdata2$NAICS2)
+testdata2$NAICS3 = as.numeric(testdata2$NAICS3)
+
+library(lubridate)# for working on date with time
+
+
+#working on dates
+modeldata2$churn_date= as.Date(modeldata2$churn_date, format= "%m/%d/%y")
+as.numeric(modeldata2$churn_date, origin="1970-01-01")
+
+
+modeldata2$Company_Creation_Date = parse_date_time(modeldata2$Company_Creation_Date, orders = "%d %b %Y:%H:%M:%S")
+as.numeric(modeldata2$Company_Creation_Date)
+
+testdata2$Company_Creation_Date = parse_date_time(testdata2$Company_Creation_Date, orders = "%d %b %Y:%H:%M:%S")
+as.numeric(testdata2$Company_Creation_Date)
+
+#converting quantitative data to numerical variables
+modeldata2$Company_Number = as.numeric(modeldata2$Company_Number)
+modeldata2$total_products = as.numeric(modeldata2$total_products)
+modeldata2$total_transactions = as.numeric(modeldata2$total_transactions)
+modeldata2$total_revenue = as.numeric(modeldata2$total_revenue)
+modeldata2$total_usage = as.numeric(modeldata2$total_usage)
+modeldata2$total_accounts = as.numeric(modeldata2$total_accounts)
+modeldata2$churned = as.numeric(modeldata2$churned)
+
+#converting quantitative data to numerical variables for testdata
+testdata2$Company_Number = as.numeric(testdata2$Company_Number)
+testdata2$total_products = as.numeric(testdata2$total_products)
+testdata2$total_transactions = as.numeric(testdata2$total_transactions)
+testdata2$total_revenue = as.numeric(testdata2$total_revenue)
+testdata2$total_usage = as.numeric(testdata2$total_usage)
+testdata2$total_accounts = as.numeric(testdata2$total_accounts)
+
+
+#Since one of the objective of the project is to predict if a customer is likely to churn or not and there are no dates for a customer not churning, it was decided that the empty spaces in the churn_Date column be assigned a 1970-10-01.
+modeldata2$churn_date[is.na(modeldata2$churn_date)] <- dmy('01-10-1970')
+modeldata2$Company_Creation_Date[is.na(modeldata2$Company_Creation_Date)] <- ymd("2012-11-10") #3 NAs replaced with mean date
+testdata2$Company_Creation_Date[is.na(testdata2$Company_Creation_Date)] <- ymd("2012-11-10") 
+
+summary(modeldata2)
+summary(testdata2)
+```
+
+#Imputation
+#Handling missing variables 
+
+```{r include=FALSE}
+
+#dealing with NAs for other variables, with mice imputation
+
+library(mice)
+library(VIM)
+
+#modeldata
+modeldata2$HQ_Country2= as.factor(modeldata2$HQ_Country2)
+modeldata2$NAICS2.2= as.factor(modeldata2$NAICS2.2)
+modeldata2$NAICS3.3= as.factor(modeldata2$NAICS3.3)
+
+#for testdata
+testdata2$HQ_Country2= as.factor(testdata2$HQ_Country2)
+testdata2$NAICS2.2= as.factor(testdata2$NAICS2.2)
+testdata2$NAICS3.3= as.factor(testdata2$NAICS3.3)
+
+str(modeldata2)
+str(testdata2)
+
+#percentage missing values
+p = function(x) {sum(is.na(x))/length(x)*100}
+apply(modeldata2, 2, p)
+md.pattern(modeldata2)
+
+#modeldata
+impute = mice(modeldata2[,9:16], m=3, seed = 123)
+#testdatat
+impute2 = mice(testdata2[,7:14], m=3, seed = 123)
+
+#modeldata
+summary(modeldata2$total_accounts)
+impute$imp$total_accounts
+impute$imp$HQ_Country2
+
+#testdata
+summary(testdata2$total_accounts)
+impute2$imp$total_accounts
+impute2$imp$HQ_Country2
+
+#modeldata
+final_modeldata = complete(impute, 3)
+final_modeldata2 = complete(impute, 3)
+
+#testdata
+final_testdata = complete(impute2, 3)
+final_testdata2 = complete(impute2, 3)
+
+#NB: it was neccessary to keep duplicates of HQ_country2, NAICS2.2 and NAICS3.3 for reference. Since they have NAs they were retained in final_modeldata2, while final_modeldata is clean
+
+final_modeldata$HQ_Country2 = NULL
+final_modeldata$NAICS2.2 = NULL
+final_modeldata$NAICS3.3 = NULL
+
+final_modeldata = cbind(modeldata2[,1:8], final_modeldata) 
+final_modeldata2 = cbind(modeldata2[,1:8], final_modeldata2)
+
+#testdata
+final_testdata$HQ_Country2 = NULL
+final_testdata$NAICS2.2 = NULL
+final_testdata$NAICS3.3 = NULL
+
+final_testdata = cbind(testdata2[,1:6], final_testdata) 
+final_testdata2 = cbind(testdata2[,1:6], final_testdata2)
+
+summary(final_modeldata)
+summary(final_testdata)
+```
+
+## R Markdown
+#description and plots of the final model data and writing it to file.
+
+
+```{r cars}
+
+library(tidyverse)
+library(GGally)
+library(Hmisc)
+library(DataExplorer)
+library(skimr)
+
+
+# basic R: the str() function
+str(final_modeldata)
+str(final_testdata)
+
+# a bit more descriptive summaries
+describe(final_modeldata) # this is from the Hmisc package
+describe(final_testdata)
+introduce(final_modeldata) # this is from the DataExplorer package
+introduce(final_testdata)
+skim(final_modeldata)
+skim(final_testdata)
+
+
+# for general exploratory analysis, you can use packages such as the DataExplorer package.
+# Make sure to check the tutorial/overview for this package to get an understanding of the provided features
+
+# structure of the data set
+plot_intro(final_modeldata)
+plot_intro(final_testdata)
+plot_str(final_modeldata)
+plot_str(final_testdata)
+
+# plot missing values
+plot_missing(final_modeldata)
+plot_missing(final_testdata)
+
+# plot the correlation between variables
+plot_correlation(final_modeldata)
+plot_correlation(final_testdata)
+
+write.csv(final_modeldata, file = "final_model.csv")
+write.csv(final_modeldata2, file = "final_model2.csv")
+
+#writing testdata
+write.csv(final_testdata, file = "final_test.csv")
+write.csv(final_testdata2, file = "final_test2.csv")
+
+```
+
+## The End
+
