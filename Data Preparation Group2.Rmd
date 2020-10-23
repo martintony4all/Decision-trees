@@ -22,9 +22,17 @@ setwd("C:/Users/mnwadiugwu/Desktop/ML/Assignment 1")
 
 
 # reading the modeldata file and assigning 'NA' to empty cells
-modeldata <- read.csv("modeldata_aug2020.csv", header = TRUE, na.strings=c("","Not Available","999-UNKNOWN","99-UNKNOWN","CONFLICT","NA"))
-testdata <- read.csv(file = "testdata_aug2020.csv", header = TRUE, na.strings=c("","Not Available","99-UNKNOWN","999-UNKNOWN","CONFLICT","NA"))
+modeldata1 <- read.csv("modeldata_aug2020.csv", header = TRUE, na.strings=c("","Not Available","999-UNKNOWN","99-UNKNOWN","CONFLICT","NA"))
+testdata1 <- read.csv(file = "testdata_aug2020.csv", header = TRUE, na.strings=c("","Not Available","99-UNKNOWN","999-UNKNOWN","CONFLICT","NA"))
 
+firmdata <- read.csv(file = "Firmographic Data_Aug2020.csv", header = TRUE, na.strings=c("","Not Available","99-UNKNOWN","999-UNKNOWN","CONFLICT","NA", "-", "."))
+
+
+#Combine Firmographic data and model data
+modeldata <- modeldata1 %>% left_join(firmdata,by="Company_Number")
+
+#Combine Firmographic data and test data
+testdata <- testdata1 %>% left_join(firmdata,by="Company_Number")
 
 
 #checking for NAs and complete values
@@ -61,6 +69,29 @@ cor(modeldata_numeric)
 modeldata$HQ_Country[modeldata$HQ_Country == 0] <- NA
 modeldata$NAICS2[modeldata$NAICS2 == 0] <- NA
 modeldata$NAICS3[modeldata$NAICS3 == 0] <- NA
+modeldata$Business_Code[modeldata$Business_Code == 0] <- NA
+modeldata$COUNTRY[modeldata$COUNTRY == 0] <- NA
+modeldata$STATE[modeldata$STATE == 0] <- NA
+modeldata$CITY[modeldata$CITY == 0] <- NA
+modeldata$ZIP[modeldata$ZIP == 0] <- NA
+modeldata$Location_Type[modeldata$Location_Type == 0] <- NA
+modeldata$BEMFAB__Marketability_[modeldata$BEMFAB__Marketability_ == 0] <- NA
+modeldata$Public_Private_Indicator[modeldata$Public_Private_Indicator == 0] <- NA
+modeldata$Small_Business_Indicator[modeldata$Small_Business_Indicator == 0] <- NA
+modeldata$Minority_Owned_Indicator[modeldata$Minority_Owned_Indicator == 0] <- NA
+modeldata$Import_Export_Agent_Code[modeldata$Import_Export_Agent_Code == 0] <- NA
+modeldata$Site_Status[modeldata$Site_Status == 0] <- NA
+modeldata$Revenue_Range[modeldata$Revenue_Range == 0] <- NA
+modeldata$Global_Ultimate_Indicator[modeldata$Global_Ultimate_Indicator == 0] <- NA
+modeldata$Major_Industry_Category_Name[modeldata$Major_Industry_Category_Name == 0] <- NA
+modeldata$Related_Industries[modeldata$Related_Industries == 0] <- NA
+modeldata$Line_of_Business[modeldata$Line_of_Business == 0] <- NA
+modeldata$Chief_Executive_Officer_Gender_C[modeldata$Chief_Executive_Officer_Gender_C == 0] <- NA
+modeldata$Chief_Executive_Officer_Title[modeldata$Chief_Executive_Officer_Title == 0] <- NA
+modeldata$First_Executive_Title[modeldata$First_Executive_Title == 0] <- NA
+modeldata$Second_Executive_Title[modeldata$Second_Executive_Title == 0] <- NA
+modeldata$Third_Executive_Title[modeldata$Third_Executive_Title == 0] <- NA
+modeldata$Year_Started[modeldata$Year_Started == 0] <- NA
 
 
 #testdata
@@ -68,6 +99,29 @@ modeldata$NAICS3[modeldata$NAICS3 == 0] <- NA
 testdata$HQ_Country[testdata$HQ_Country == 0] <- NA
 testdata$NAICS2[testdata$NAICS2 == 0] <- NA
 testdata$NAICS3[testdata$NAICS3 == 0] <- NA
+testdata$Business_Code[testdata$Business_Code == 0] <- NA
+testdata$COUNTRY[testdata$COUNTRY == 0] <- NA
+testdata$STATE[testdata$STATE == 0] <- NA
+testdata$CITY[testdata$CITY == 0] <- NA
+testdata$ZIP[testdata$ZIP == 0] <- NA
+testdata$Location_Type[testdata$Location_Type == 0] <- NA
+testdata$BEMFAB__Marketability_[testdata$BEMFAB__Marketability_ == 0] <- NA
+testdata$Public_Private_Indicator[testdata$Public_Private_Indicator == 0] <- NA
+testdata$Small_Business_Indicator[testdata$Small_Business_Indicator == 0] <- NA
+testdata$Minority_Owned_Indicator[testdata$Minority_Owned_Indicator == 0] <- NA
+testdata$Import_Export_Agent_Code[testdata$Import_Export_Agent_Code == 0] <- NA
+testdata$Site_Status[testdata$Site_Status == 0] <- NA
+testdata$Revenue_Range[testdata$Revenue_Range == 0] <- NA
+testdata$Global_Ultimate_Indicator[testdata$Global_Ultimate_Indicator == 0] <- NA
+testdata$Major_Industry_Category_Name[testdata$Major_Industry_Category_Name == 0] <- NA
+testdata$Related_Industries[testdata$Related_Industries == 0] <- NA
+testdata$Line_of_Business[testdata$Line_of_Business == 0] <- NA
+testdata$Chief_Executive_Officer_Gender_C[testdata$Chief_Executive_Officer_Gender_C == 0] <- NA
+testdata$Chief_Executive_Officer_Title[testdata$Chief_Executive_Officer_Title == 0] <- NA
+testdata$First_Executive_Title[testdata$First_Executive_Title == 0] <- NA
+testdata$Second_Executive_Title[testdata$Second_Executive_Title == 0] <- NA
+testdata$Third_Executive_Title[testdata$Third_Executive_Title == 0] <- NA
+testdata$Year_Started[testdata$Year_Started == 0] <- NA
 
 
 library(lubridate)# for working on date with time
@@ -117,12 +171,13 @@ names(modeldata)
 dim(modeldata)
 
 # convert variables into factors
-modeldata <- modeldata %>% mutate_at(c('HQ_Country','NAICS2', 'NAICS3'), as.factor)
+modeldata <- modeldata %>% mutate_at(c('HQ_Country','NAICS2', 'NAICS3', 'Business_Code', 'COUNTRY', 'STATE', 'CITY','ZIP','Location_Type','BEMFAB__Marketability_','Public_Private_Indicator','Small_Business_Indicator','Minority_Owned_Indicator','Import_Export_Agent_Code','Site_Status','Revenue_Range','Global_Ultimate_Indicator','Major_Industry_Category_Name','Related_Industries','Line_of_Business','Chief_Executive_Officer_Gender_C','Chief_Executive_Officer_Title','First_Executive_Title','Second_Executive_Title','Third_Executive_Title'), as.factor)
 modeldata <- modeldata %>% mutate_if(is.character, as.factor)
 
 
+
 # convert variables into factors
-testdata <- testdata %>% mutate_at(c('HQ_Country','NAICS2', 'NAICS3'), as.factor)
+testdata <- testdata %>% mutate_at(c('HQ_Country','NAICS2', 'NAICS3', 'Business_Code', 'COUNTRY', 'STATE', 'CITY','ZIP','Location_Type','BEMFAB__Marketability_','Public_Private_Indicator','Small_Business_Indicator','Minority_Owned_Indicator','Import_Export_Agent_Code','Site_Status','Revenue_Range','Global_Ultimate_Indicator','Major_Industry_Category_Name','Related_Industries','Line_of_Business','Chief_Executive_Officer_Gender_C','Chief_Executive_Officer_Title','First_Executive_Title','Second_Executive_Title','Third_Executive_Title'), as.factor)
 testdata <- testdata %>% mutate_if(is.character, as.factor)
 
 #convert to numeric
@@ -170,9 +225,9 @@ impute2$imp$HQ_Employee_Count
 final_modeldata = complete(impute, 3)
 final_testdata = complete(impute2, 3)
 
-final_modeldata = cbind(modeldata[,c(1:8)], final_modeldata, modeldata[,c(11:13)]) 
+final_modeldata = cbind(modeldata[,c(1:8)], final_modeldata, modeldata[,c(11:53)]) 
 
-testdata = cbind(testdata[,c(1:6)], final_testdata, testdata[,c(9:11)]) 
+testdata = cbind(testdata[,c(1:6)], final_testdata, testdata[,c(9:51)]) 
 
 # then, we convert the 0/1 target variable into no/yes, as 0/1 can lead to problems when using as the dependent variable
 #final_modeldata <- final_modeldata %>% mutate(churned, churned = recode(churned, '0' = 'No', '1' = 'Yes'))
